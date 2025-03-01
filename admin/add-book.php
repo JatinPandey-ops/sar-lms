@@ -8,37 +8,37 @@ header('location:index.php');
 }
 else{ 
 
-if(isset($_POST['add']))
-{
-$bookid=$_POST['bookid'];
-$title=$_POST['title'];
-$category=$_POST['category'];
-$author=$_POST['author'];
-$publisher=$_POST['publisher'];
-$copies=$_POST['copies'];
-
-$sql="INSERT INTO tblbooks(BookID,Title,CatId,AuthorName,Publisher,AvailableCopies) VALUES(:bookid,:title,:category,:author,:publisher,:copies)";
-$query = $dbh->prepare($sql);
-$query->bindParam(':bookid',$bookid,PDO::PARAM_STR);
-$query->bindParam(':title',$title,PDO::PARAM_STR);
-$query->bindParam(':category',$category,PDO::PARAM_STR);
-$query->bindParam(':author',$author,PDO::PARAM_STR);
-$query->bindParam(':publisher',$publisher,PDO::PARAM_STR);
-$query->bindParam(':copies',$copies,PDO::PARAM_INT);
-$query->execute();
-$lastInsertId = $dbh->lastInsertId();
-if($lastInsertId)
-{
-$_SESSION['msg']="Book Listed successfully";
-header('location:manage-books.php');
-}
-else 
-{
-$_SESSION['error']="Something went wrong. Please try again";
-header('location:manage-books.php');
-}
-
-}
+    if(isset($_POST['add']))
+    {
+        $bookid=$_POST['bookid'];
+        $title=$_POST['title'];
+        $category=$_POST['category'];
+        $author=$_POST['author'];
+        $publisher=$_POST['publisher'];
+        $copies=$_POST['copies'];
+    
+        $sql="INSERT INTO tblbooks(BookID,Title,CatId,AuthorName,Publisher,TotalCopies,AvailableCopies) VALUES(:bookid,:title,:category,:author,:publisher,:copies,:copies)";
+        $query = $dbh->prepare($sql);
+        $query->bindParam(':bookid',$bookid,PDO::PARAM_STR);
+        $query->bindParam(':title',$title,PDO::PARAM_STR);
+        $query->bindParam(':category',$category,PDO::PARAM_STR);
+        $query->bindParam(':author',$author,PDO::PARAM_STR);
+        $query->bindParam(':publisher',$publisher,PDO::PARAM_STR);
+        $query->bindParam(':copies',$copies,PDO::PARAM_INT);
+        
+        if($query->execute())
+        {
+            $_SESSION['msg']="Book Listed successfully";
+            header('location:manage-books.php');
+            exit();
+        }
+        else 
+        {
+            $_SESSION['error']="Something went wrong. Please try again";
+            header('location:manage-books.php');
+            exit();
+        }
+    }
 ?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml">

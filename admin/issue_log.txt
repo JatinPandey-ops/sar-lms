@@ -4,3 +4,37 @@ Rows affected by INSERT: 1
 UPDATE result: Success
 Rows affected by UPDATE: 1
 Transaction committed successfully
+Attempting to issue book: 123 to student: 43434343 at 2025-03-01 17:49:10
+INSERT result: Success
+Rows affected by INSERT: 1
+UPDATE result: Success
+Rows affected by UPDATE: 1
+Transaction committed successfully
+Attempting to issue book: 1234 to student: 358345738587G at 2025-03-01 18:36:49
+INSERT result: Success
+Rows affected by INSERT: 1
+UPDATE result: Success
+Rows affected by UPDATE: 1
+Transaction committed successfully
+Attempting to issue book: 89 to student: 433434343 at 2025-03-01 18:41:47
+INSERT result: Success
+Rows affected by INSERT: 1
+UPDATE result: Success
+Rows affected by UPDATE: 1
+Transaction committed successfully
+Attempting to issue book: 89 to student: 43719374D at 2025-03-01 18:42:32
+INSERT result: Success
+Rows affected by INSERT: 1
+UPDATE result: Success
+Rows affected by UPDATE: 1
+Transaction committed successfully
+Attempting to issue book: 89 to student: 358345738587G at 2025-03-01 18:46:43
+INSERT result: Success
+Rows affected by INSERT: 1
+UPDATE result: Failed
+Attempting to issue book: 89 to student: 358345738587G at 2025-03-01 18:48:34
+INSERT result: Success
+Rows affected by INSERT: 1
+UPDATE result: Success
+Rows affected by UPDATE: 1
+Transaction committed successfully
