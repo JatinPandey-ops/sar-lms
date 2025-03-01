@@ -7,30 +7,36 @@ if(strlen($_SESSION['alogin'])==0) {
 } else { 
     // For returning books
     if(isset($_GET['return'])) {
-        $bookId = $_GET['return'];
+        $id = $_GET['return'];
         $studentId = $_GET['studentid'];
         $fine = intval($_GET['fine']);
+        $returnDate = isset($_GET['returndate']) ? $_GET['returndate'] : date('Y-m-d H:i:s');
         
-        // Update issue record
         $sql = "UPDATE tblissuedbookdetails SET ReturnDate=:returndate, RetrunStatus=1, fine=:fine 
-                WHERE BookId=:bookid AND StudentID=:studentid AND RetrunStatus=0";
-        $returndate = date('Y-m-d H:i:s');
+                WHERE BookId=:id AND StudentID=:studentid AND RetrunStatus=0";
         $query = $dbh->prepare($sql);
-        $query->bindParam(':bookid', $bookId, PDO::PARAM_STR);
+        $query->bindParam(':id', $id, PDO::PARAM_STR);
         $query->bindParam(':studentid', $studentId, PDO::PARAM_STR);
-        $query->bindParam(':returndate', $returndate, PDO::PARAM_STR);
-        $query->bindParam(':fine', $fine, PDO::PARAM_INT);
+        $query->bindParam(':returndate', $returnDate, PDO::PARAM_STR);
+        $query->bindParam(':fine', $fine, PDO::PARAM_STR);
         $query->execute();
         
-        // Update book available copies manually since trigger might not work
+        // Update the book available copies
         $updateBook = "UPDATE tblbooks SET AvailableCopies = AvailableCopies + 1 
-                       WHERE BookID = :bookid AND AvailableCopies < TotalCopies";
+                      WHERE BookID = :id AND AvailableCopies < TotalCopies";
         $updateQuery = $dbh->prepare($updateBook);
-        $updateQuery->bindParam(':bookid', $bookId, PDO::PARAM_STR);
+        $updateQuery->bindParam(':id', $id, PDO::PARAM_STR);
         $updateQuery->execute();
         
         $_SESSION['msg'] = "Book returned successfully";
-        header('location:manage-issued-books.php');
+        
+        // If the request came from the student-history page, redirect back there
+        if(isset($_GET['from']) && $_GET['from'] == 'history') {
+            header('location:student-history.php?stdid=' . $_GET['stdid']);
+        } else {
+            header('location:manage-issued-books.php');
+        }
+        exit;
     }
 ?>
 <!DOCTYPE html>
@@ -66,21 +72,9 @@ if(strlen($_SESSION['alogin'])==0) {
             <div class="col-md-12">
                 <h4 class="header-line">Manage Issued Books</h4>
             </div>
-            <div class="col-md-6">
-                <a href="issue-book.php" class="btn btn-success">Issue New Book</a>
-            </div>
         </div>
 
         <div class="row">
-            <?php if(isset($_SESSION['error']) && $_SESSION['error']!="") { ?>
-            <div class="col-md-6">
-                <div class="alert alert-danger">
-                    <strong>Error:</strong> <?php echo htmlentities($_SESSION['error']); ?>
-                    <?php $_SESSION['error']=""; ?>
-                </div>
-            </div>
-            <?php } ?>
-            
             <?php if(isset($_SESSION['msg']) && $_SESSION['msg']!="") { ?>
             <div class="col-md-6">
                 <div class="alert alert-success">
@@ -89,23 +83,15 @@ if(strlen($_SESSION['alogin'])==0) {
                 </div>
             </div>
             <?php } ?>
-        </div>
-
-        <!-- Filter Section -->
-        <div class="row">
-            <div class="col-md-12">
-                <div class="panel panel-default">
-                    <div class="panel-heading">
-                        Filter Options
-                    </div>
-                    <div class="panel-body">
-                        <button id="showAll" class="btn btn-default">All Books</button>
-                        <button id="showIssued" class="btn btn-warning">Currently Issued</button>
-                        <button id="showReturned" class="btn btn-success">Returned Books</button>
-                        <button id="showOverdue" class="btn btn-danger">Overdue Books</button>
-                    </div>
+            
+            <?php if(isset($_SESSION['error']) && $_SESSION['error']!="") { ?>
+            <div class="col-md-6">
+                <div class="alert alert-danger">
+                    <strong>Error:</strong> <?php echo htmlentities($_SESSION['error']); ?>
+                    <?php $_SESSION['error']=""; ?>
                 </div>
             </div>
+            <?php } ?>
         </div>
 
         <div class="row">
@@ -126,22 +112,18 @@ if(strlen($_SESSION['alogin'])==0) {
                                         <th>Student Name</th>
                                         <th>Issue Date</th>
                                         <th>Return Date</th>
-                                        <th>Status</th>
                                         <th>Fine</th>
                                         <th>Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <?php 
-                                    $sql = "SELECT tblissuedbookdetails.BookId, 
-                                            tblbooks.Title, tblissuedbookdetails.StudentID, 
-                                            tblstudents.FullName, tblissuedbookdetails.IssuesDate, 
-                                            tblissuedbookdetails.ReturnDate, tblissuedbookdetails.fine,
-                                            tblissuedbookdetails.RetrunStatus
-                                            FROM tblissuedbookdetails 
-                                            JOIN tblbooks ON tblbooks.BookID=tblissuedbookdetails.BookId 
-                                            JOIN tblstudents ON tblstudents.StudentId=tblissuedbookdetails.StudentID
-                                            ORDER BY tblissuedbookdetails.IssuesDate DESC";
+                                    $sql = "SELECT i.BookId, i.StudentID, i.IssuesDate, i.ReturnDate, i.fine,
+                                            i.RetrunStatus, b.Title, s.FullName
+                                            FROM tblissuedbookdetails i
+                                            JOIN tblbooks b ON b.BookID=i.BookId 
+                                            JOIN tblstudents s ON s.StudentId=i.StudentID
+                                            ORDER BY i.IssuesDate DESC";
                                     $query = $dbh->prepare($sql);
                                     $query->execute();
                                     $results = $query->fetchAll(PDO::FETCH_OBJ);
@@ -155,7 +137,7 @@ if(strlen($_SESSION['alogin'])==0) {
                                             $isOverdue = ($result->RetrunStatus == 0 && $daysIssued > 14); // 14 days policy
                                             $rowClass = $isOverdue ? 'class="overdue"' : '';
                                         ?>                                      
-                                            <tr <?php echo $rowClass; ?> data-status="<?php echo $result->RetrunStatus; ?>" data-overdue="<?php echo $isOverdue ? '1' : '0'; ?>">
+                                            <tr <?php echo $rowClass; ?>>
                                                 <td><?php echo htmlentities($cnt);?></td>
                                                 <td><?php echo htmlentities($result->BookId);?></td>
                                                 <td><?php echo htmlentities($result->Title);?></td>
@@ -164,33 +146,19 @@ if(strlen($_SESSION['alogin'])==0) {
                                                 <td><?php echo htmlentities(date('d-m-Y', strtotime($result->IssuesDate)));?></td>
                                                 <td>
                                                     <?php if($result->ReturnDate == null) {
-                                                        if($isOverdue) {
-                                                            echo "<span class='text-danger'>Overdue by " . ($daysIssued - 14) . " days</span>";
-                                                        } else {
-                                                            echo "Not Returned Yet";
-                                                        }
+                                                        echo "Not Returned Yet";
                                                     } else {
                                                         echo htmlentities(date('d-m-Y', strtotime($result->ReturnDate)));
                                                     } ?>
                                                 </td>
+                                                <td><?php echo $result->fine === null ? "N/A" : ("RM " . htmlentities($result->fine));?></td>
                                                 <td>
-                                                    <?php if($result->RetrunStatus == 0): ?>
-                                                        <span class="label label-warning">Issued</span>
-                                                    <?php else: ?>
-                                                        <span class="label label-success">Returned</span>
-                                                    <?php endif; ?>
-                                                </td>
-                                                <td><?php echo $result->fine === null ? "N/A" : ("$" . htmlentities($result->fine));?></td>
-                                                <td>
-                                                    <?php if($result->RetrunStatus == 0) { 
-                                                        // Calculate suggested fine based on days overdue
-                                                        $suggestedFine = $isOverdue ? (($daysIssued - 14) * 1) : 0; // $1 per day overdue
-                                                    ?>
+                                                    <?php if($result->RetrunStatus == 0) { ?>
                                                     <a href="#" data-toggle="modal" data-target="#returnModal<?php echo $cnt; ?>" class="btn btn-primary btn-sm">
                                                         <i class="fa fa-undo"></i> Return
                                                     </a>
                                                     
-                                                    <!-- Return Book Modal -->
+                                                    <!-- Return Modal -->
                                                     <div class="modal fade" id="returnModal<?php echo $cnt; ?>" tabindex="-1" role="dialog" aria-labelledby="returnModalLabel" aria-hidden="true">
                                                         <div class="modal-dialog">
                                                             <div class="modal-content">
@@ -219,20 +187,40 @@ if(strlen($_SESSION['alogin'])==0) {
                                                                         </div>
                                                                         
                                                                         <div class="form-group">
-                                                                            <label>Days Issued</label>
-                                                                            <input class="form-control" type="text" value="<?php echo $daysIssued; ?> days" readonly>
+                                                                            <label>Return Date</label>
+                                                                            <input class="form-control" type="date" name="returndate" id="returndate<?php echo $cnt; ?>" value="<?php echo date('Y-m-d'); ?>" onchange="calculateFine<?php echo $cnt; ?>()" required>
                                                                         </div>
-                                                                        
-                                                                        <?php if($isOverdue): ?>
-                                                                        <div class="alert alert-warning">
-                                                                            This book is overdue by <?php echo ($daysIssued - 14); ?> days.
-                                                                            Suggested fine: $<?php echo $suggestedFine; ?>
-                                                                        </div>
-                                                                        <?php endif; ?>
                                                                         
                                                                         <div class="form-group">
-                                                                            <label>Fine (if any)</label>
-                                                                            <input class="form-control" type="number" name="fine" min="0" value="<?php echo $suggestedFine; ?>">
+                                                                            <label>Days Kept</label>
+                                                                            <input class="form-control" type="text" id="daysKept<?php echo $cnt; ?>" value="<?php echo $daysIssued; ?> days" readonly>
+                                                                        </div>
+                                                                        
+                                                                        <div id="overdueInfo<?php echo $cnt; ?>">
+                                                                            <?php if($isOverdue): ?>
+                                                                            <div class="alert alert-warning">
+                                                                                <p>This book is overdue by <?php echo ($daysIssued - 14); ?> days.</p>
+                                                                                <p>Fine rate: 5 RM per day after the 14-day period.</p>
+                                                                                <p>Calculated fine: <?php echo (($daysIssued - 14) * 5); ?> RM</p>
+                                                                            </div>
+                                                                            <?php endif; ?>
+                                                                        </div>
+                                                                        
+                                                                        <div class="form-group">
+                                                                            <label>Fine (RM)</label>
+                                                                            <input class="form-control" type="number" name="fine" id="fine<?php echo $cnt; ?>" min="0" value="<?php echo $isOverdue ? (($daysIssued - 14) * 5) : 0; ?>" readonly>
+                                                                            <small class="text-muted">Fine is calculated at 5 RM per day after the 14-day period</small>
+                                                                        </div>
+                                                                        
+                                                                        <div class="form-group">
+                                                                            <label>Override Fine (if needed)</label>
+                                                                            <div class="input-group">
+                                                                                <span class="input-group-addon">
+                                                                                    <input type="checkbox" id="overrideFine<?php echo $cnt; ?>" onchange="toggleFineEdit<?php echo $cnt; ?>()">
+                                                                                </span>
+                                                                                <input type="number" class="form-control" id="manualFine<?php echo $cnt; ?>" min="0" disabled>
+                                                                            </div>
+                                                                            <small class="text-muted">Check this box to manually override the calculated fine</small>
                                                                         </div>
                                                                         
                                                                         <button type="submit" class="btn btn-primary">Confirm Return</button>
@@ -241,8 +229,82 @@ if(strlen($_SESSION['alogin'])==0) {
                                                             </div>
                                                         </div>
                                                     </div>
+                                                    
+                                                    <!-- JavaScript for this specific modal -->
+                                                    <script>
+                                                        // Calculate fine based on selected return date
+                                                        function calculateFine<?php echo $cnt; ?>() {
+                                                            // Get the issue date and selected return date
+                                                            var issueDate = new Date("<?php echo date('Y-m-d', strtotime($result->IssuesDate)); ?>");
+                                                            var returnDate = new Date(document.getElementById('returndate<?php echo $cnt; ?>').value);
+                                                            
+                                                            // Calculate days between dates
+                                                            var timeDiff = returnDate.getTime() - issueDate.getTime();
+                                                            var daysKept = Math.ceil(timeDiff / (1000 * 3600 * 24));
+                                                            
+                                                            // Update days kept field
+                                                            document.getElementById('daysKept<?php echo $cnt; ?>').value = daysKept + " days";
+                                                            
+                                                            // Calculate fine (5 RM per day after 14 days)
+                                                            var fine = 0;
+                                                            if (daysKept > 14) {
+                                                                fine = (daysKept - 14) * 5;
+                                                            }
+                                                            
+                                                            // Update fine field
+                                                            document.getElementById('fine<?php echo $cnt; ?>').value = fine;
+                                                            
+                                                            // Update overdue information
+                                                            var overdueInfo = document.getElementById('overdueInfo<?php echo $cnt; ?>');
+                                                            if (daysKept > 14) {
+                                                                overdueInfo.innerHTML = `
+                                                                    <div class="alert alert-warning">
+                                                                        <p>This book is overdue by ${daysKept - 14} days.</p>
+                                                                        <p>Fine rate: 5 RM per day after the 14-day period.</p>
+                                                                        <p>Calculated fine: ${fine} RM</p>
+                                                                    </div>
+                                                                `;
+                                                            } else {
+                                                                overdueInfo.innerHTML = `
+                                                                    <div class="alert alert-success">
+                                                                        <p>This book is being returned within the 14-day period.</p>
+                                                                        <p>No fine will be charged.</p>
+                                                                    </div>
+                                                                `;
+                                                            }
+                                                        }
+                                                        
+                                                        // Toggle between automatic and manual fine
+                                                        function toggleFineEdit<?php echo $cnt; ?>() {
+                                                            var checkbox = document.getElementById('overrideFine<?php echo $cnt; ?>');
+                                                            var fineField = document.getElementById('fine<?php echo $cnt; ?>');
+                                                            var manualFineField = document.getElementById('manualFine<?php echo $cnt; ?>');
+                                                            
+                                                            if (checkbox.checked) {
+                                                                // Enable manual override
+                                                                fineField.readOnly = false;
+                                                                manualFineField.disabled = false;
+                                                                manualFineField.value = fineField.value;
+                                                                
+                                                                // Add an event listener to update the actual fine field
+                                                                manualFineField.addEventListener('input', function() {
+                                                                    fineField.value = this.value;
+                                                                });
+                                                            } else {
+                                                                // Disable manual override and recalculate
+                                                                fineField.readOnly = true;
+                                                                manualFineField.disabled = true;
+                                                                calculateFine<?php echo $cnt; ?>();
+                                                            }
+                                                        }
+                                                        
+                                                        // Run calculation when the modal is shown
+                                                        $('#returnModal<?php echo $cnt; ?>').on('shown.bs.modal', function() {
+                                                            calculateFine<?php echo $cnt; ?>();
+                                                        });
+                                                    </script>
                                                     <?php } else { ?>
-                                                        <button disabled class="btn btn-default btn-sm">Returned</button>
+                                                        <span class="label label-success">Returned</span>
                                                     <?php } ?>
                                                 </td>
                                             </tr>
@@ -267,38 +329,13 @@ if(strlen($_SESSION['alogin'])==0) {
 <script src="assets/js/dataTables/jquery.dataTables.js"></script>
 <script src="assets/js/dataTables/dataTables.bootstrap.js"></script>
 <script>
-    $(document).ready(function () {
-        var table = $('#dataTables-example').DataTable({
-            "order": [[ 5, "desc" ]] // Sort by issue date by default (newest first)
-        });
-        
-        // Filter buttons functionality
-        $('#showAll').click(function() {
-            table.search('').columns().search('').draw();
-        });
-        
-        $('#showIssued').click(function() {
-            table.columns(7).search('Issued').draw();
-        });
-        
-        $('#showReturned').click(function() {
-            table.columns(7).search('Returned').draw();
-        });
-        
-        $('#showOverdue').click(function() {
-            // Filter rows with overdue attribute
-            $.fn.dataTable.ext.search.push(
-                function(settings, data, dataIndex) {
-                    var row = table.row(dataIndex).node();
-                    return $(row).attr('data-overdue') === '1';
-                }
-            );
-            table.draw();
-            $.fn.dataTable.ext.search.pop(); // Remove the filter after drawing
-        });
+$(document).ready(function() {
+    $('#dataTables-example').DataTable({
+        responsive: true,
+        "order": [[ 5, "desc" ]] /
     });
+});
 </script>
-<script src="assets/js/custom.js"></script>
 
 </body>
 </html>

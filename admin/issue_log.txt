@@ -1,0 +1,6 @@
+Attempting to issue book: 123 to student: 43719374D at 2025-03-01 16:33:47
+INSERT result: Success
+Rows affected by INSERT: 1
+UPDATE result: Success
+Rows affected by UPDATE: 1
+Transaction committed successfully
